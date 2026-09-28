@@ -13,6 +13,21 @@ function App() {
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const [token, setToken] = useState(
+    () => localStorage.getItem("crmToken") || ""
+  );
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("crmUser")) || null;
+    } catch {
+      return null;
+    }
+  });
+  const [loginData, setLoginData] = useState({
+    email: "admin@crm.com",
+    password: "Admin@123",
+  });
+  const [loginError, setLoginError] = useState("");
 
   const [customerFormData, setCustomerFormData] = useState({
     name: "",
@@ -37,9 +52,64 @@ function App() {
     assignedTo: "Aditya",
   });
 
-  const fetchLeads = async () => {
+  const apiFetch = async (url, options = {}) => {
+    const headers = {
+      ...(options.body
+        ? { "Content-Type": "application/json" }
+        : {}),
+      ...(options.headers || {}),
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+    });
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+
     try {
-      const response = await fetch(`${API}/api/leads`);
+      const response = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(loginData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
+      }
+
+      localStorage.setItem("crmToken", data.token);
+      localStorage.setItem("crmUser", JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      setLoginError(error.message);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("crmToken");
+    localStorage.removeItem("crmUser");
+    setToken("");
+    setUser(null);
+    setLeads([]);
+    setCustomers([]);
+  };
+
+  const fetchLeads = async () =>
+    try {
+      const response = await apiFetch(`${API}/api/leads`);
       const data = await response.json();
       setLeads(data);
     } catch (error) {
@@ -50,8 +120,14 @@ function App() {
   };
 
   useEffect(() => {
-    fetchLeads();
-  }, []);
+    if (token) {
+      fetchLeads();
+      fetchCustomers();
+    } else {
+      setLoading(false);
+      setCustomerLoading(false);
+    }
+  }, [token]);
 
   const resetForm = () => {
     setFormData({
@@ -79,7 +155,7 @@ function App() {
 
       const method = editingLead ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -130,7 +206,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API}/api/leads/${id}`, {
+      const response = await apiFetch(`${API}/api/leads/${id}`, {
         method: "DELETE",
       });
 
@@ -148,7 +224,7 @@ function App() {
 
   const fetchCustomers = async () => {
     try {
-      const response = await fetch(`${API}/api/customers`);
+      const response = await apiFetch(`${API}/api/customers`);
       if (!response.ok) {
         throw new Error("Failed to fetch customers");
       }
@@ -162,9 +238,7 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+
 
   const resetCustomerForm = () => {
     setCustomerFormData({
@@ -245,7 +319,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API}/api/customers/${id}`, {
+      const response = await apiFetch(`${API}/api/customers/${id}`, {
         method: "DELETE",
       });
 
@@ -309,6 +383,65 @@ function App() {
       ? Math.round(totalValue / leads.length)
       : 0;
 
+  if (!token) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="logo">
+            <div className="logo-icon">C</div>
+            <div>
+              <h2>CoreCRM</h2>
+              <span>Enterprise CRM</span>
+            </div>
+          </div>
+
+          <h1>Sign in</h1>
+          <p>Sign in to access your CRM dashboard.</p>
+
+          <form onSubmit={handleLogin} className="login-form">
+            <input
+              type="email"
+              placeholder="Email"
+              value={loginData.email}
+              onChange={(e) =>
+                setLoginData({
+                  ...loginData,
+                  email: e.target.value,
+                })
+              }
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Password"
+              value={loginData.password}
+              onChange={(e) =>
+                setLoginData({
+                  ...loginData,
+                  password: e.target.value,
+                })
+              }
+              required
+            />
+
+            {loginError && (
+              <p className="login-error">{loginError}</p>
+            )}
+
+            <button type="submit" className="save-button">
+              Sign In
+            </button>
+          </form>
+
+          <small>
+            Demo Admin: admin@crm.com / Admin@123
+          </small>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
 
@@ -346,20 +479,32 @@ function App() {
             Customers
           </a>
 
-          <a>Activities</a>
+          <a
+            title="Activity API is available; activity UI is next"
+            style={{ opacity: 0.6, cursor: "default" }}
+          >
+            Activities
+          </a>
         </nav>
 
         <div className="sidebar-bottom">
 
           <a>Settings</a>
 
+          <button
+            className="logout-button"
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+
           <div className="profile">
 
             <div className="avatar">A</div>
 
             <div>
-              <strong>Aditya Kumar</strong>
-              <span>Administrator</span>
+              <strong>{user?.name || "User"}</strong>
+              <span>{user?.role || "Sales"}</span>
             </div>
 
           </div>
