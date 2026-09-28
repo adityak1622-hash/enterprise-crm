@@ -1,9 +1,11 @@
 const express = require("express");
 const Customer = require("../models/Customer");
+const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 
-// GET all customers
+router.use(authenticate);
+
 router.get("/", async (req, res) => {
   try {
     const customers = await Customer.find().sort({
@@ -19,7 +21,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET single customer
 router.get("/:id", async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
@@ -39,7 +40,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// CREATE customer
 router.post("/", async (req, res) => {
   try {
     const customer = await Customer.create(req.body);
@@ -56,7 +56,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// UPDATE customer
 router.put("/:id", async (req, res) => {
   try {
     const customer = await Customer.findByIdAndUpdate(
@@ -86,12 +85,9 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE customer
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authorize("Admin"), async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndDelete(
-      req.params.id
-    );
+    const customer = await Customer.findByIdAndDelete(req.params.id);
 
     if (!customer) {
       return res.status(404).json({
