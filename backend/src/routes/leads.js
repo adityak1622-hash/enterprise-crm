@@ -1,13 +1,14 @@
 const express = require("express");
 const Lead = require("../models/Lead");
+const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 
-// GET all leads
+router.use(authenticate);
+
 router.get("/", async (req, res) => {
   try {
     const leads = await Lead.find().sort({ createdAt: -1 });
-
     res.json(leads);
   } catch (error) {
     res.status(500).json({
@@ -17,7 +18,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET single lead
 router.get("/:id", async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id);
@@ -37,7 +37,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// CREATE lead
 router.post("/", async (req, res) => {
   try {
     const lead = await Lead.create(req.body);
@@ -54,7 +53,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// UPDATE lead
 router.put("/:id", async (req, res) => {
   try {
     const lead = await Lead.findByIdAndUpdate(
@@ -84,8 +82,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE lead
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authorize("Admin"), async (req, res) => {
   try {
     const lead = await Lead.findByIdAndDelete(req.params.id);
 
